@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import OAuthButtons from "@/components/OAuthButtons";
+import { toast } from "@/components/Toast";
 
 const PRESET_AVATARS = [
   { id: "avatar-1", label: "Biznes", url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80" },
@@ -30,8 +31,8 @@ export default function SignupPage() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("+998 90 123 45 67");
-  const [avatar, setAvatar] = useState(PRESET_AVATARS[0].url);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [avatar, setAvatar] = useState(null);
   const [customAvatarPreview, setCustomAvatarPreview] = useState(null);
 
   const [otpSent, setOtpSent] = useState(false);
@@ -63,7 +64,7 @@ export default function SignupPage() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Rasm hajmi 5MB dan oshmasligi kerak!");
+        toast.error("Rasm hajmi 5MB dan oshmasligi kerak!", "Hajm cheklovi");
         return;
       }
       const reader = new FileReader();
@@ -145,12 +146,23 @@ export default function SignupPage() {
             {/* Avatar upload section */}
             <div className="flex flex-col items-center gap-2">
               <div className="relative group">
-                <div className="w-22 h-22 rounded-full border-3 border-[#23e5db] shadow-md overflow-hidden bg-gray-100 flex items-center justify-center">
-                  <img
-                    src={customAvatarPreview || avatar}
-                    alt="Profil rasmi"
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-22 h-22 rounded-full border-3 border-[#23e5db] shadow-md overflow-hidden bg-gradient-to-tr from-[#002f34] to-[#008f87] text-[#23e5db] flex items-center justify-center">
+                  {customAvatarPreview || avatar ? (
+                    <img
+                      src={customAvatarPreview || avatar}
+                      alt="Profil rasmi"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-2xl font-black uppercase tracking-wider text-white">
+                      {((firstName.trim() ? firstName.trim()[0] : "") +
+                        (lastName.trim()
+                          ? lastName.trim()[0]
+                          : firstName.trim().length > 1
+                          ? firstName.trim()[1]
+                          : "")) || <User className="w-9 h-9 text-white/80" />}
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -173,33 +185,23 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs font-bold text-teal-700 hover:underline inline-flex items-center gap-1"
+                  className="text-xs font-bold text-teal-700 hover:underline inline-flex items-center gap-1.5 bg-teal-50 px-3.5 py-1.5 rounded-full border border-teal-200 hover:bg-teal-100 transition-colors"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>Kompyuterdan rasm yuklash</span>
                 </button>
-                <p className="text-[10px] text-gray-400">yoki tayyor avatarlardan birini tanlang:</p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {PRESET_AVATARS.map((p) => (
+                {customAvatarPreview && (
                   <button
-                    key={p.id}
                     type="button"
                     onClick={() => {
-                      setAvatar(p.url);
+                      setAvatar(null);
                       setCustomAvatarPreview(null);
                     }}
-                    className={`w-9 h-9 rounded-full border-2 overflow-hidden transition-all ${
-                      avatar === p.url && !customAvatarPreview
-                        ? "border-[#23e5db] ring-2 ring-[#23e5db]/30 scale-110"
-                        : "border-transparent opacity-70 hover:opacity-100"
-                    }`}
-                    title={p.label}
+                    className="text-[11px] font-bold text-red-500 hover:underline block mt-1.5 mx-auto"
                   >
-                    <img src={p.url} alt={p.label} className="w-full h-full object-cover" />
+                    Rasmni o&apos;chirish (Initsialga qaytish)
                   </button>
-                ))}
+                )}
               </div>
             </div>
 
@@ -213,7 +215,7 @@ export default function SignupPage() {
                   <User className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Sardor"
+                    placeholder="Ismingiz"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     required
@@ -228,7 +230,7 @@ export default function SignupPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Alimov"
+                  placeholder="Familiyangiz"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   className="w-full bg-[#f2f4f5] text-xs font-medium px-3.5 py-3 rounded-2xl outline-none border border-transparent focus:bg-white focus:border-[#23e5db] text-[#002f34]"

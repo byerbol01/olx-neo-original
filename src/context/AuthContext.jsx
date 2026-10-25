@@ -122,7 +122,7 @@ export function AuthProvider({ children }) {
   };
 
   // Complete registration (Sync with Backend API)
-  const completeSignup = async ({ firstName, lastName, phone, avatar, password }) => {
+  const completeSignup = async ({ firstName = "", lastName = "", phone, avatar, password }) => {
     const fullName = `${firstName.trim()} ${lastName.trim()}`.trim() || "Foydalanuvchi";
     let backendUser = null;
     try {
@@ -132,9 +132,9 @@ export function AuthProvider({ children }) {
       console.warn("Backend signup fallback:", e.message);
     }
 
-    const initials = (
-      (firstName[0] || "") + (lastName[0] || firstName[1] || "U")
-    ).toUpperCase();
+    const firstChar = (firstName.trim() ? firstName.trim()[0] : (fullName[0] || "F")).toUpperCase();
+    const secondChar = (lastName.trim() ? lastName.trim()[0] : (firstName.trim().length > 1 ? firstName.trim()[1] : "")).toUpperCase();
+    const initials = `${firstChar}${secondChar}`.trim() || firstChar || "OL";
 
     const role = (phone === "+998 90 999 99 99" || backendUser?.role === "admin") ? "admin" : "user";
 
@@ -144,9 +144,7 @@ export function AuthProvider({ children }) {
       lastName: lastName.trim() || "",
       phone: phone || "+998 90 123 45 67",
       role,
-      avatar:
-        avatar ||
-        "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80",
+      avatar: avatar || null,
       avatarInitials: initials,
       walletBalance: 100000,
       isVerified: true,

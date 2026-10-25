@@ -29,7 +29,6 @@ export default function Navbar() {
   const router = useRouter();
   const { user, isLoggedIn, logout } = useAuth();
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState("Butun O'zbekiston");
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
@@ -59,15 +58,6 @@ export default function Navbar() {
     "Namangan viloyati",
     "Buxoro viloyati",
   ];
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/catalog?q=${encodeURIComponent(searchQuery)}`);
-    } else {
-      router.push("/catalog");
-    }
-  };
 
   // Get user display names
   const displayName = user?.name || "Foydalanuvchi";
@@ -133,28 +123,8 @@ export default function Navbar() {
               <span>Barcha ruknlar</span>
             </Link>
 
-            {/* Search */}
-            <form onSubmit={handleSearch} className="flex-1 max-w-[440px] hidden md:block">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Nima qidiryapsiz? (Masalan: iPhone 15, Cobalt, kvartira)"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#f2f4f5] text-[#002f34] placeholder-gray-500 text-xs md:text-sm pl-4 pr-10 py-2.5 rounded-full border border-transparent focus:bg-white focus:border-[#23e5db] focus:ring-2 focus:ring-[#23e5db]/20 outline-none transition-all font-medium"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#002f34] transition-colors"
-                  aria-label="Qidirish"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
-              </div>
-            </form>
-
             {/* Right actions */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
               {/* Favorites */}
               <Link
                 href="/favorites"
@@ -172,20 +142,6 @@ export default function Navbar() {
                   }`}
                 />
                 <span className="hidden lg:inline">Sevimlilar</span>
-              </Link>
-
-              {/* Admin Panel Link */}
-              <Link
-                href="/admin"
-                className={`flex items-center gap-1.5 text-xs font-bold px-2.5 py-1.5 rounded-xl transition-all ${
-                  pathname === "/admin"
-                    ? "bg-[#002f34] text-white"
-                    : "text-[#008f87] bg-[#23e5db]/15 hover:bg-[#23e5db]/30"
-                }`}
-                title="Admin boshqaruv paneli"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span className="hidden md:inline">Admin</span>
               </Link>
 
               {/* Messages */}
@@ -365,25 +321,6 @@ export default function Navbar() {
         {/* Mobile dropdown drawer */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-3 animate-in slide-in-from-top-4">
-            {/* Mobile search */}
-            <form onSubmit={handleSearch}>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Nima qidiryapsiz?"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#f2f4f5] text-xs pl-3.5 pr-9 py-2.5 rounded-full outline-none"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
-              </div>
-            </form>
-
             {isLoggedIn ? (
               <div className="space-y-2 pt-2 border-t border-gray-100">
                 <div className="flex items-center gap-3 p-2 bg-[#f4f7f8] rounded-xl">

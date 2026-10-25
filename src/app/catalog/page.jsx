@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -24,73 +24,84 @@ import ProductCard from "@/components/ProductCard";
 import TradeInBanner from "@/components/TradeInBanner";
 import { getProducts } from "@/lib/api";
 
+const REAL_CATEGORIES = [
+  "Avto",
+  "Ko'chmas mulk",
+  "Elektronika",
+  "Ish o'rinlari",
+  "Xizmatlar",
+  "Moda va stil",
+  "Bolalar dunyosi",
+  "Uy va bog'",
+];
+
+const MAIN_TABS = ["Barchasi", ...REAL_CATEGORIES];
+const PAGE_SIZE = 10;
+
+// Normalize category name mapping
+const CAT_MAP = {
+  avto: "Avto",
+  re: "Ko'chmas mulk",
+  "ko'chmas mulk": "Ko'chmas mulk",
+  jobs: "Ish o'rinlari",
+  "ish o'rinlari": "Ish o'rinlari",
+  services: "Xizmatlar",
+  xizmatlar: "Xizmatlar",
+  fashion: "Moda va stil",
+  "moda va stil": "Moda va stil",
+  kids: "Bolalar dunyosi",
+  "bolalar dunyosi": "Bolalar dunyosi",
+  home: "Uy va bog'",
+  "uy va bog'": "Uy va bog'",
+  electronics: "Elektronika",
+  elektronika: "Elektronika",
+};
+
 export default function CatalogPage() {
   const searchParams = useSearchParams();
   const rawCat = searchParams.get("category") || searchParams.get("cat") || "Barchasi";
   const searchParamQuery = searchParams.get("q") || "";
 
-  // Normalize category name
-  const catMap = {
-    avto: "Avto",
-    re: "Ko'chmas mulk",
-    jobs: "Ish o'rinlari",
-    services: "Xizmatlar",
-    fashion: "Moda va stil",
-    kids: "Bolalar dunyosi",
-    home: "Uy va bog'",
-    electronics: "Elektronika",
-  };
-  const initialCategory = catMap[rawCat?.toLowerCase()] || rawCat || "Barchasi";
+  const initialCategory = CAT_MAP[rawCat?.toLowerCase()] || rawCat || "Barchasi";
 
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Filters state
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [selectedRange, setSelectedRange] = useState("");
-  const [selectedBrands, setSelectedBrands] = useState([]);
-  const [selectedConditions, setSelectedConditions] = useState(["Barchasi"]);
+  const [selectedCondition, setSelectedCondition] = useState("Barchasi");
   const [warrantyToggle, setWarrantyToggle] = useState(false);
   const [deliveryToggle, setDeliveryToggle] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState("Toshkent shahri");
+  const [selectedLocation, setSelectedLocation] = useState("Barchasi");
   const [sortBy, setSortBy] = useState("Eng ommabop");
   const [viewMode, setViewMode] = useState("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  const mainCategoryTabs = [
-    "Barchasi",
-    "Avto",
-    "Ko'chmas mulk",
-    "Elektronika",
-    "Ish o'rinlari",
-    "Xizmatlar",
-    "Moda va stil",
-    "Bolalar dunyosi",
-    "Uy va bog'",
-  ];
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Sync category if URL parameter changes
   useEffect(() => {
     const fromUrl = searchParams.get("category") || searchParams.get("cat");
     if (fromUrl) {
-      const normalized = catMap[fromUrl.toLowerCase()] || fromUrl;
+      const normalized = CAT_MAP[fromUrl.toLowerCase()] || fromUrl;
       setSelectedCategory(normalized);
+      setCurrentPage(1);
     }
   }, [searchParams]);
 
-  // Fetch products from Backend API
+  // Load all products from Backend API
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
       try {
         setLoading(true);
-        const data = await getProducts({
-          category: selectedCategory !== "Barchasi" ? selectedCategory : undefined,
-          q: searchParamQuery || undefined,
-        });
+        const data = await getProducts();
         if (isMounted) {
-          setProducts(data || []);
+          setAllProducts(data || []);
         }
       } catch (err) {
         console.error("Katalog mahsulotlarini yuklashda xatolik:", err);
@@ -102,63 +113,167 @@ export default function CatalogPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedCategory, searchParamQuery]);
+  }, []);
 
-  const categories = [
-    { id: "noutbuklar", label: "Noutbuklar", count: 1452 },
-    { id: "pc", label: "Kompyuterlar & monoblok", count: 840 },
-    { id: "gaming", label: "O'yin noutbuklari", count: 524 },
-    { id: "accessories", label: "Aksessuarlar", count: 1120 },
-    { id: "bags", label: "Sumka va g'iloflar", count: 315 },
-  ];
+  // Reset page when any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, minPrice, maxPrice, selectedRange, selectedCondition, selectedLocation, sortBy, searchParamQuery]);
 
-  const brandOptions = [
-    { name: "Apple", count: 342 },
-    { name: "ASUS", count: 290 },
-    { name: "Lenovo", count: 245 },
-    { name: "HP", count: 188 },
-    { name: "Acer", count: 112 },
-  ];
+  // Dynamic counts per category
+  const categoryCounts = useMemo(() => {
+    const counts = { Barchasi: allProducts.length };
+    REAL_CATEGORIES.forEach((cat) => {
+      counts[cat] = allProducts.filter((p) => p.category === cat).length;
+    });
+    return counts;
+  }, [allProducts]);
 
-  const conditionOptions = [
-    { name: "Barchasi", count: 1452 },
-    { name: "Yangi (qadoqda)", count: 618 },
-    { name: "Ishlatilgan (ideal)", count: 580 },
-    { name: "Ishlatilgan (yaxshi)", count: 254 },
-  ];
+  // Condition options and their dynamic counts
+  const conditionOptions = useMemo(() => {
+    const yangi = allProducts.filter((p) =>
+      p.condition?.toLowerCase().includes("yangi")
+    ).length;
+    const alo = allProducts.filter(
+      (p) =>
+        p.condition?.toLowerCase().includes("a'lo") ||
+        p.condition?.toLowerCase().includes("ideal")
+    ).length;
+    const ishl = allProducts.filter(
+      (p) =>
+        p.condition?.toLowerCase().includes("ishlatilgan") ||
+        p.condition?.toLowerCase().includes("yaxshi")
+    ).length;
 
-  const toggleBrand = (brand) => {
-    if (selectedBrands.includes(brand)) {
-      setSelectedBrands(selectedBrands.filter((b) => b !== brand));
-    } else {
-      setSelectedBrands([...selectedBrands, brand]);
+    return [
+      { name: "Barchasi", count: allProducts.length },
+      { name: "Yangi (qadoqda)", count: yangi },
+      { name: "Ishlatilgan (ideal)", count: alo },
+      { name: "Ishlatilgan (yaxshi)", count: ishl },
+    ];
+  }, [allProducts]);
+
+  const handleRangeClick = (range) => {
+    if (selectedRange === range) {
+      setSelectedRange("");
+      setMinPrice("");
+      setMaxPrice("");
+      return;
     }
-  };
-
-  const toggleCondition = (cond) => {
-    if (selectedConditions.includes(cond)) {
-      setSelectedConditions(selectedConditions.filter((c) => c !== cond));
-    } else {
-      setSelectedConditions([...selectedConditions, cond]);
+    setSelectedRange(range);
+    if (range === "1M - 5M") {
+      setMinPrice("1000000");
+      setMaxPrice("5000000");
+    } else if (range === "5M - 10M") {
+      setMinPrice("5000000");
+      setMaxPrice("10000000");
+    } else if (range === "10M - 20M") {
+      setMinPrice("10000000");
+      setMaxPrice("20000000");
+    } else if (range === "20M+") {
+      setMinPrice("20000000");
+      setMaxPrice("");
     }
   };
 
   const clearAllFilters = () => {
-    setSelectedBrands([]);
-    setSelectedConditions([]);
+    setSelectedCategory("Barchasi");
     setSelectedRange("");
     setMinPrice("");
     setMaxPrice("");
+    setSelectedCondition("Barchasi");
+    setSelectedLocation("Barchasi");
     setWarrantyToggle(false);
     setDeliveryToggle(false);
+    setCurrentPage(1);
   };
 
-  // Filter products based on state
-  const filteredProducts = products.filter((prod) => {
-    if (minPrice && Number(prod.price) < Number(minPrice)) return false;
-    if (maxPrice && Number(prod.price) > Number(maxPrice)) return false;
-    return true;
-  });
+  // Filter & Sort Engine
+  const filteredProducts = useMemo(() => {
+    let result = [...allProducts];
+
+    // 1. Category
+    if (selectedCategory !== "Barchasi") {
+      result = result.filter((p) => p.category === selectedCategory);
+    }
+
+    // 2. Search Query (from URL)
+    if (searchParamQuery.trim()) {
+      const q = searchParamQuery.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.title?.toLowerCase().includes(q) ||
+          p.location?.toLowerCase().includes(q) ||
+          (typeof p.description === "string" && p.description.toLowerCase().includes(q))
+      );
+    }
+
+    // 3. Price min / max
+    const cleanMin = minPrice ? Number(String(minPrice).replace(/\s/g, "")) : null;
+    const cleanMax = maxPrice ? Number(String(maxPrice).replace(/\s/g, "")) : null;
+    if (cleanMin !== null && !isNaN(cleanMin)) {
+      result = result.filter((p) => Number(p.price || 0) >= cleanMin);
+    }
+    if (cleanMax !== null && !isNaN(cleanMax)) {
+      result = result.filter((p) => Number(p.price || 0) <= cleanMax);
+    }
+
+    // 4. Condition
+    if (selectedCondition && selectedCondition !== "Barchasi") {
+      if (selectedCondition.includes("Yangi")) {
+        result = result.filter((p) => p.condition?.toLowerCase().includes("yangi"));
+      } else if (selectedCondition.includes("ideal")) {
+        result = result.filter(
+          (p) =>
+            p.condition?.toLowerCase().includes("a'lo") ||
+            p.condition?.toLowerCase().includes("ideal")
+        );
+      } else if (selectedCondition.includes("yaxshi")) {
+        result = result.filter(
+          (p) =>
+            p.condition?.toLowerCase().includes("ishlatilgan") ||
+            p.condition?.toLowerCase().includes("yaxshi")
+        );
+      }
+    }
+
+    // 5. Location
+    if (selectedLocation && selectedLocation !== "Barchasi") {
+      result = result.filter((p) =>
+        p.location?.toLowerCase().includes(selectedLocation.toLowerCase().split(" ")[0])
+      );
+    }
+
+    // 6. Sort
+    if (sortBy === "Arzonroq") {
+      result.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    } else if (sortBy === "Qimmatroq") {
+      result.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    } else if (sortBy === "Eng yangi") {
+      result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    } else {
+      // Eng ommabop
+      result.sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0));
+    }
+
+    return result;
+  }, [allProducts, selectedCategory, searchParamQuery, minPrice, maxPrice, selectedCondition, selectedLocation, sortBy]);
+
+  // Pagination calculation: exactly 10 products per page
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    return filteredProducts.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredProducts, currentPage]);
+
+  const handlePageChange = (pageNum) => {
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      setCurrentPage(pageNum);
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 120, behavior: "smooth" });
+      }
+    }
+  };
 
   return (
     <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-5 sm:py-7 space-y-6">
@@ -181,7 +296,7 @@ export default function CatalogPage() {
       <div className="bg-white rounded-2xl border border-gray-200/80 p-3 sm:p-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-            {mainCategoryTabs.map((tab) => (
+            {MAIN_TABS.map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -192,13 +307,16 @@ export default function CatalogPage() {
                     : "bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-100"
                 }`}
               >
-                {tab}
+                <span>{tab}</span>
+                <span className="ml-1 text-[10px] opacity-70">
+                  ({categoryCounts[tab] || 0})
+                </span>
               </button>
             ))}
           </div>
 
           <Link
-            href={`/create?category=${encodeURIComponent(selectedCategory === "Barchasi" ? "Elektronika" : selectedCategory)}`}
+            href={`/create?category=${encodeURIComponent(selectedCategory === "Barchasi" ? "Avto" : selectedCategory)}`}
             className="flex items-center justify-center gap-1.5 bg-[#ffce32] hover:bg-[#f3c220] active:scale-95 text-[#002f34] font-black text-xs px-4 py-2.5 rounded-xl shrink-0 shadow-xs transition-all"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
@@ -219,7 +337,7 @@ export default function CatalogPage() {
               Faol bozor
             </span>
             <span className="text-xs text-gray-500 font-medium">
-              {filteredProducts.length} ta e&apos;lon topildi
+              Jami {filteredProducts.length} ta e&apos;lon (Sahifa {currentPage} / {totalPages})
             </span>
           </div>
         </div>
@@ -247,7 +365,7 @@ export default function CatalogPage() {
           className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 rounded-xl py-2.5 text-xs font-bold text-[#002f34] shadow-sm"
         >
           <SlidersHorizontal className="w-4 h-4 text-[#23e5db]" />
-          <span>Filtrlar</span>
+          <span>Filtrlar ({filteredProducts.length})</span>
         </button>
 
         <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
@@ -308,31 +426,49 @@ export default function CatalogPage() {
               </button>
             </div>
 
-            {/* Rukn (Category) */}
+            {/* Rukn (Category list from real DB) */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-[#002f34] block">
-                Rukn
+                Rukn (Kategoriya)
               </label>
               <div className="space-y-1">
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors ${
-                      selectedCategory === cat.id
-                        ? "bg-[#002f34] text-white font-bold"
-                        : "hover:bg-[#f2f4f5] text-gray-700"
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory("Barchasi")}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors ${
+                    selectedCategory === "Barchasi"
+                      ? "bg-[#002f34] text-white font-bold"
+                      : "hover:bg-[#f2f4f5] text-gray-700 font-medium"
+                  }`}
+                >
+                  <span>Barcha ruknlar</span>
+                  <span
+                    className={`text-[11px] ${
+                      selectedCategory === "Barchasi" ? "text-teal-200 font-bold" : "text-gray-400"
                     }`}
                   >
-                    <span>{cat.label}</span>
+                    {allProducts.length}
+                  </span>
+                </button>
+
+                {REAL_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs transition-colors ${
+                      selectedCategory === cat
+                        ? "bg-[#002f34] text-white font-bold"
+                        : "hover:bg-[#f2f4f5] text-gray-700 font-medium"
+                    }`}
+                  >
+                    <span>{cat}</span>
                     <span
                       className={`text-[11px] ${
-                        selectedCategory === cat.id
-                          ? "text-teal-200"
-                          : "text-gray-400"
+                        selectedCategory === cat ? "text-teal-200 font-bold" : "text-gray-400"
                       }`}
                     >
-                      {cat.count}
+                      {categoryCounts[cat] || 0}
                     </span>
                   </button>
                 ))}
@@ -354,8 +490,8 @@ export default function CatalogPage() {
                     type="text"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
-                    placeholder="5 000 000"
-                    className="w-full bg-[#f2f4f5] text-xs font-medium px-3 py-2 rounded-xl outline-none focus:bg-white focus:border focus:border-[#23e5db]"
+                    placeholder="1 000 000"
+                    className="w-full bg-[#f2f4f5] text-xs font-medium px-3 py-2 rounded-xl outline-none focus:bg-white focus:border focus:border-[#23e5db] text-[#002f34]"
                   />
                 </div>
                 <div>
@@ -366,8 +502,8 @@ export default function CatalogPage() {
                     type="text"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
-                    placeholder="25 000 000"
-                    className="w-full bg-[#f2f4f5] text-xs font-medium px-3 py-2 rounded-xl outline-none focus:bg-white focus:border focus:border-[#23e5db]"
+                    placeholder="50 000 000"
+                    className="w-full bg-[#f2f4f5] text-xs font-medium px-3 py-2 rounded-xl outline-none focus:bg-white focus:border focus:border-[#23e5db] text-[#002f34]"
                   />
                 </div>
               </div>
@@ -377,51 +513,16 @@ export default function CatalogPage() {
                 {["1M - 5M", "5M - 10M", "10M - 20M", "20M+"].map((range) => (
                   <button
                     key={range}
-                    onClick={() => setSelectedRange(range)}
+                    type="button"
+                    onClick={() => handleRangeClick(range)}
                     className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all ${
                       selectedRange === range
-                        ? "bg-[#23e5db]/20 border-[#23e5db] text-[#002f34] font-bold"
+                        ? "bg-[#23e5db]/25 border-[#23e5db] text-[#002f34] font-bold shadow-2xs"
                         : "border-gray-200 text-gray-600 hover:bg-gray-50"
                     }`}
                   >
                     {range}
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Brend (Brand checkboxes) */}
-            <div className="space-y-2.5 pt-2 border-t border-gray-100">
-              <label className="text-xs font-bold text-[#002f34] block">
-                Brend
-              </label>
-              <div className="space-y-2">
-                {brandOptions.map((brand) => (
-                  <label
-                    key={brand.name}
-                    className="flex items-center justify-between text-xs cursor-pointer group select-none"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        onClick={() => toggleBrand(brand.name)}
-                        className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${
-                          selectedBrands.includes(brand.name)
-                            ? "bg-[#002f34] border-[#002f34] text-white"
-                            : "border-gray-300 group-hover:border-gray-400 bg-white"
-                        }`}
-                      >
-                        {selectedBrands.includes(brand.name) && (
-                          <Check className="w-3 h-3 stroke-[3]" />
-                        )}
-                      </div>
-                      <span className="text-gray-700 group-hover:text-black font-medium">
-                        {brand.name}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-gray-400">
-                      {brand.count}
-                    </span>
-                  </label>
                 ))}
               </div>
             </div>
@@ -432,33 +533,36 @@ export default function CatalogPage() {
                 Holati
               </label>
               <div className="space-y-2">
-                {conditionOptions.map((cond) => (
-                  <label
-                    key={cond.name}
-                    className="flex items-center justify-between text-xs cursor-pointer group select-none"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        onClick={() => toggleCondition(cond.name)}
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
-                          selectedConditions.includes(cond.name)
-                            ? "border-[#002f34] bg-[#002f34]"
-                            : "border-gray-300 group-hover:border-gray-400 bg-white"
-                        }`}
-                      >
-                        {selectedConditions.includes(cond.name) && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
-                        )}
+                {conditionOptions.map((cond) => {
+                  const isSelected = selectedCondition === cond.name;
+                  return (
+                    <label
+                      key={cond.name}
+                      onClick={() => setSelectedCondition(cond.name)}
+                      className="flex items-center justify-between text-xs cursor-pointer group select-none"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                            isSelected
+                              ? "border-[#002f34] bg-[#002f34]"
+                              : "border-gray-300 group-hover:border-gray-400 bg-white"
+                          }`}
+                        >
+                          {isSelected && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white"></div>
+                          )}
+                        </div>
+                        <span className="text-gray-700 group-hover:text-black font-medium">
+                          {cond.name}
+                        </span>
                       </div>
-                      <span className="text-gray-700 group-hover:text-black font-medium">
-                        {cond.name}
+                      <span className="text-[11px] text-gray-400">
+                        {cond.count}
                       </span>
-                    </div>
-                    <span className="text-[11px] text-gray-400">
-                      {cond.count}
-                    </span>
-                  </label>
-                ))}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -473,6 +577,7 @@ export default function CatalogPage() {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={() => setWarrantyToggle(!warrantyToggle)}
                 className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
                   warrantyToggle ? "bg-[#23e5db]" : "bg-gray-300"
@@ -497,6 +602,7 @@ export default function CatalogPage() {
                 </span>
               </div>
               <button
+                type="button"
                 onClick={() => setDeliveryToggle(!deliveryToggle)}
                 className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
                   deliveryToggle ? "bg-[#23e5db]" : "bg-gray-300"
@@ -520,16 +626,18 @@ export default function CatalogPage() {
                 onChange={(e) => setSelectedLocation(e.target.value)}
                 className="w-full bg-[#f2f4f5] text-xs font-medium px-3 py-2 rounded-xl outline-none text-[#002f34]"
               >
-                <option value="Toshkent shahri">Toshkent shahri</option>
-                <option value="Samarqand viloyati">Samarqand viloyati</option>
-                <option value="Farg'ona viloyati">Farg&apos;ona viloyati</option>
-                <option value="Andijon viloyati">Andijon viloyati</option>
-                <option value="Buxoro viloyati">Buxoro viloyati</option>
+                <option value="Barchasi">Barcha hududlar</option>
+                <option value="Toshkent">Toshkent shahri</option>
+                <option value="Samarqand">Samarqand viloyati</option>
+                <option value="Farg'ona">Farg&apos;ona viloyati</option>
+                <option value="Andijon">Andijon viloyati</option>
+                <option value="Buxoro">Buxoro viloyati</option>
               </select>
             </div>
 
             {/* Apply button */}
             <button
+              type="button"
               onClick={() => setMobileFilterOpen(false)}
               className="w-full py-3 rounded-2xl bg-[#002f34] hover:bg-black active:scale-95 text-white font-bold text-xs shadow-sm transition-all"
             >
@@ -546,37 +654,38 @@ export default function CatalogPage() {
               <span className="text-xs text-gray-400 mr-1 hidden sm:inline">
                 Tanlangan:
               </span>
-              {selectedBrands.map((b) => (
-                <span
-                  key={b}
-                  className="inline-flex items-center gap-1.5 bg-gray-100 text-[#002f34] text-xs font-semibold px-2.5 py-1 rounded-lg"
-                >
-                  <span>{b}</span>
+              {selectedCategory !== "Barchasi" && (
+                <span className="inline-flex items-center gap-1.5 bg-teal-50 text-[#008f87] text-xs font-bold px-2.5 py-1 rounded-lg border border-teal-200">
+                  <span>{selectedCategory}</span>
                   <button
-                    onClick={() => toggleBrand(b)}
-                    className="hover:text-red-500"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              {selectedRange && (
-                <span className="inline-flex items-center gap-1.5 bg-gray-100 text-[#002f34] text-xs font-semibold px-2.5 py-1 rounded-lg">
-                  <span>{selectedRange}</span>
-                  <button
-                    onClick={() => setSelectedRange("")}
+                    onClick={() => setSelectedCategory("Barchasi")}
                     className="hover:text-red-500"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 </span>
               )}
-              {(selectedBrands.length > 0 || selectedRange) && (
+              {selectedRange && (
+                <span className="inline-flex items-center gap-1.5 bg-gray-100 text-[#002f34] text-xs font-semibold px-2.5 py-1 rounded-lg">
+                  <span>{selectedRange}</span>
+                  <button
+                    onClick={() => {
+                      setSelectedRange("");
+                      setMinPrice("");
+                      setMaxPrice("");
+                    }}
+                    className="hover:text-red-500"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {(selectedCategory !== "Barchasi" || selectedRange || minPrice || maxPrice || selectedCondition !== "Barchasi") && (
                 <button
                   onClick={clearAllFilters}
                   className="text-xs text-red-500 hover:underline font-semibold ml-2"
                 >
-                  Tozalash
+                  Barchasini tozalash
                 </button>
               )}
             </div>
@@ -646,7 +755,7 @@ export default function CatalogPage() {
                 </p>
               </div>
               <Link
-                href={`/create?category=${encodeURIComponent(selectedCategory === "Barchasi" ? "Elektronika" : selectedCategory)}`}
+                href={`/create?category=${encodeURIComponent(selectedCategory === "Barchasi" ? "Avto" : selectedCategory)}`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#ffce32] hover:bg-[#f3c220] active:scale-95 text-[#002f34] font-black text-xs shadow-xs transition-all"
               >
                 <Plus className="w-4 h-4 stroke-[3]" />
@@ -661,7 +770,7 @@ export default function CatalogPage() {
                   : "space-y-4"
               }
             >
-              {filteredProducts.map((prod) => (
+              {paginatedProducts.map((prod) => (
                 <ProductCard
                   key={prod.id}
                   id={prod.id}
@@ -682,41 +791,81 @@ export default function CatalogPage() {
             </div>
           )}
 
-          {/* Trade-In Banner (As in Reference Screen 2) */}
+          {/* Trade-In Banner */}
           <div className="pt-2">
             <TradeInBanner />
           </div>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-center gap-2 pt-6">
-            <button
-              className="w-8 h-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 transition-colors"
-              aria-label="Oldingi sahifa"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button className="w-8 h-8 rounded-full bg-[#002f34] text-white font-bold text-xs flex items-center justify-center shadow-sm">
-              1
-            </button>
-            <button className="w-8 h-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center transition-colors">
-              2
-            </button>
-            <button className="w-8 h-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center transition-colors">
-              3
-            </button>
-            <button className="w-8 h-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center transition-colors">
-              4
-            </button>
-            <button className="w-8 h-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs flex items-center justify-center transition-colors">
-              5
-            </button>
-            <button
-              className="w-8 h-8 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 transition-colors"
-              aria-label="Keyingi sahifa"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Real Dynamic Pagination (10 products per page) */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2 pt-6">
+              {/* Previous page button */}
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center transition-all ${
+                  currentPage === 1
+                    ? "opacity-40 cursor-not-allowed text-gray-300"
+                    : "hover:bg-gray-100 text-gray-700 shadow-2xs"
+                }`}
+                aria-label="Oldingi sahifa"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Dynamic Page numbers */}
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                // Show first, last, current, and adjacent pages
+                if (
+                  totalPages > 7 &&
+                  pageNum !== 1 &&
+                  pageNum !== totalPages &&
+                  Math.abs(pageNum - currentPage) > 2
+                ) {
+                  if (pageNum === 2 || pageNum === totalPages - 1) {
+                    return (
+                      <span key={`page-ellipsis-${pageNum}`} className="text-gray-400 px-1 text-xs">
+                        ...
+                      </span>
+                    );
+                  }
+                  return null;
+                }
+
+                const isActive = currentPage === pageNum;
+                return (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`w-9 h-9 rounded-full text-xs font-bold transition-all ${
+                      isActive
+                        ? "bg-[#002f34] text-white shadow-sm scale-105"
+                        : "border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 hover:border-gray-300"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Next page button */}
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`w-9 h-9 rounded-full border border-gray-200 bg-white flex items-center justify-center transition-all ${
+                  currentPage === totalPages
+                    ? "opacity-40 cursor-not-allowed text-gray-300"
+                    : "hover:bg-gray-100 text-gray-700 shadow-2xs"
+                }`}
+                aria-label="Keyingi sahifa"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

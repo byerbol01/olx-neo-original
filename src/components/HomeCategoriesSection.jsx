@@ -16,6 +16,7 @@ import {
   Sparkles,
   RefreshCw,
   FolderOpen,
+  Search,
 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import { getProducts } from "@/lib/api";
@@ -34,7 +35,12 @@ export const CATEGORIES_LIST = [
 export default function HomeCategoriesSection() {
   const [activeCategory, setActiveCategory] = useState("Avto");
   const [categoryProducts, setCategoryProducts] = useState([]);
+  const [categorySearch, setCategorySearch] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setCategorySearch("");
+  }, [activeCategory]);
 
   useEffect(() => {
     let isMounted = true;
@@ -152,19 +158,33 @@ export default function HomeCategoriesSection() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* ADD PRODUCT TO THIS CATEGORY BUTTON */}
-            <Link
-              href={`/create?category=${encodeURIComponent(activeCategory)}`}
-              className="flex items-center gap-2 bg-[#ffce32] hover:bg-[#f3c220] active:scale-95 text-[#002f34] text-xs sm:text-sm font-black px-4 py-2.5 rounded-2xl shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+{activeCategory} bo&apos;limiga e&apos;lon qo&apos;shish</span>
-            </Link>
+          {/* SEARCH BAR IN THIS CATEGORY INSTEAD OF POST AD BUTTON */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-72">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={categorySearch}
+                onChange={(e) => setCategorySearch(e.target.value)}
+                placeholder={`${activeCategory} bo'yicha qidirish...`}
+                className="w-full bg-white text-[#002f34] placeholder-gray-400 text-xs pl-9 pr-7 py-2.5 rounded-2xl border border-gray-200 focus:border-[#23e5db] focus:ring-2 focus:ring-[#23e5db]/20 outline-none transition-all shadow-xs font-medium"
+              />
+              {categorySearch && (
+                <button
+                  type="button"
+                  onClick={() => setCategorySearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
             <Link
-              href={`/catalog?category=${encodeURIComponent(activeCategory)}`}
-              className="hidden md:flex items-center gap-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-[#002f34] text-xs font-bold px-3.5 py-2.5 rounded-2xl transition-all"
+              href={`/catalog?category=${encodeURIComponent(activeCategory)}${
+                categorySearch ? `&q=${encodeURIComponent(categorySearch)}` : ""
+              }`}
+              className="flex items-center gap-1.5 bg-[#002f34] hover:bg-[#001f22] text-[#23e5db] text-xs font-bold px-3.5 py-2.5 rounded-2xl transition-all shadow-xs shrink-0"
             >
               <span>Katalogda ko&apos;rish</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -180,7 +200,13 @@ export default function HomeCategoriesSection() {
               {activeCategory} bo&apos;yicha e&apos;lonlar yuklanmoqda...
             </p>
           </div>
-        ) : categoryProducts.length === 0 ? (
+        ) : categoryProducts.filter((p) => {
+            if (!categorySearch.trim()) return true;
+            return (
+              p.title?.toLowerCase().includes(categorySearch.toLowerCase()) ||
+              p.location?.toLowerCase().includes(categorySearch.toLowerCase())
+            );
+          }).length === 0 ? (
           /* Empty state */
           <div className="py-12 flex flex-col items-center justify-center text-center space-y-3">
             <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400">
@@ -188,24 +214,29 @@ export default function HomeCategoriesSection() {
             </div>
             <div>
               <p className="font-bold text-sm text-[#002f34]">
-                Hozircha {activeCategory} bo&apos;limida e&apos;lonlar yo&apos;q
+                {categorySearch
+                  ? `"${categorySearch}" bo'yicha e'lon topilmadi`
+                  : `Hozircha ${activeCategory} bo'limida e'lonlar yo'q`}
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Birinchi bo&apos;lib ushbu bo&apos;limga e&apos;lon joylashtiring!
+                {categorySearch
+                  ? "Boshqa so'z bilan qidirib ko'ring yoki barcha e'lonlarni ko'ring"
+                  : "Birinchi bo'lib ushbu bo'limga e'lon joylashtiring!"}
               </p>
             </div>
-            <Link
-              href={`/create?category=${encodeURIComponent(activeCategory)}`}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#23e5db] hover:bg-[#1cd1c7] text-[#002f34] font-bold text-xs shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>E&apos;lon berish</span>
-            </Link>
           </div>
         ) : (
           /* Products Grid for Active Category */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {categoryProducts.map((prod) => (
+            {categoryProducts
+              .filter((p) => {
+                if (!categorySearch.trim()) return true;
+                return (
+                  p.title?.toLowerCase().includes(categorySearch.toLowerCase()) ||
+                  p.location?.toLowerCase().includes(categorySearch.toLowerCase())
+                );
+              })
+              .map((prod) => (
               <ProductCard
                 key={prod.id}
                 id={prod.id}

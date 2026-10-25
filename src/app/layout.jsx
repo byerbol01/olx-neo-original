@@ -2,8 +2,8 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import MobileNav from "@/components/MobileNav";
-import LiveSupportChat from "@/components/LiveSupportChat";
 import SmsNotificationBanner from "@/components/SmsNotificationBanner";
+import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata = {
@@ -39,15 +39,19 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="uz">
-      <body className="min-h-screen flex flex-col bg-[#f4f6f7] text-[#002f34] antialiased selection:bg-[#23e5db] selection:text-[#002f34]">
+    <html lang="uz" suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className="min-h-screen flex flex-col bg-[#f4f6f7] text-[#002f34] antialiased selection:bg-[#23e5db] selection:text-[#002f34]"
+      >
         <AuthProvider>
-          <SmsNotificationBanner />
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <MobileNav />
-          <LiveSupportChat />
+          <ToastProvider>
+            <SmsNotificationBanner />
+            <Navbar />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <MobileNav />
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>

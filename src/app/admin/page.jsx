@@ -18,14 +18,17 @@ import {
   MapPin,
   Clock,
   ArrowLeft,
+  MessageSquare,
 } from "lucide-react";
-import { getProducts, deleteProduct, getAdminStats, getAdminUsers } from "@/lib/api";
+import { getProducts, deleteProduct, getAdminStats, getAdminUsers, getBackendMessages } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function AdminPage() {
   const { user, completeLogin } = useAuth();
   const [products, setProducts] = useState([]);
   const [users, setUsers] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [adminTab, setAdminTab] = useState("products"); // "products" | "messages"
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,14 +40,16 @@ export default function AdminPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [prodsData, statsData, usersData] = await Promise.all([
+      const [prodsData, statsData, usersData, msgsData] = await Promise.all([
         getProducts(),
         getAdminStats(),
         getAdminUsers(),
+        getBackendMessages(),
       ]);
       setProducts(prodsData || []);
       setStats(statsData);
       setUsers(usersData || []);
+      setMessages(msgsData || []);
     } catch (err) {
       console.error("Admin ma'lumotlarini yuklashda xatolik:", err);
     } finally {
@@ -236,8 +241,116 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 2. PRODUCTS MANAGEMENT TABLE */}
-      <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
+      {/* TAB SWITCHER */}
+      <div className="flex items-center gap-3 border-b border-gray-200 pb-2">
+        <button
+          onClick={() => setAdminTab("products")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all ${
+            adminTab === "products"
+              ? "bg-[#002f34] text-white shadow-sm"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>E&apos;lonlar boshqaruvi ({products.length})</span>
+        </button>
+
+        <button
+          onClick={() => setAdminTab("messages")}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all ${
+            adminTab === "messages"
+              ? "bg-[#002f34] text-white shadow-sm"
+              : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-[#23e5db]" />
+          <span>Mijozlar xabarlari ({messages.length})</span>
+        </button>
+      </div>
+
+      {adminTab === "messages" ? (
+        /* MESSAGES SECTION */
+        <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+            <div>
+              <h2 className="text-lg font-black text-[#002f34]">
+                Mijozlar tomonidan yuborilgan xabarlar ({messages.length})
+              </h2>
+              <p className="text-xs text-gray-500">
+                Foydalanuvchilar e&apos;lonlar bo&apos;yicha yozgan barcha suhbatlar tarixi
+              </p>
+            </div>
+            <Link
+              href="/messages"
+              className="text-xs font-bold text-[#008f87] hover:underline flex items-center gap-1"
+            >
+              <span>Chat markaziga o&apos;tish</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {messages.length === 0 ? (
+            <div className="text-center py-16 text-gray-400 space-y-2">
+              <MessageSquare className="w-12 h-12 mx-auto text-gray-300" />
+              <p className="font-bold text-sm text-gray-600">Hozircha xabarlar kelmagan</p>
+              <p className="text-xs text-gray-400">
+                Foydalanuvchi mahsulot sahifasida &quot;Xabar yozish&quot; tugmasini bossa, xabar bu yerda paydo bo&apos;ladi
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((conv) => (
+                <div
+                  key={conv.id}
+                  className="p-4 rounded-2xl bg-gray-50 border border-gray-200 hover:border-[#23e5db] transition-all space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200/70 pb-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#002f34] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                        {conv.user?.name ? conv.user.name.slice(0, 2).toUpperCase() : "MJ"}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#002f34]">
+                          {conv.user?.name || "Mijoz"} {conv.user?.phone && `(${conv.user.phone})`}
+                        </div>
+                        <div className="text-[11px] text-gray-500">
+                          E&apos;lon: <strong className="text-teal-700">{conv.productTitle}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-gray-400 font-medium">
+                      Oxirgi xabar: {conv.lastTime || "Yangi"}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pl-2">
+                    {conv.messages?.map((m, idx) => (
+                      <div
+                        key={idx}
+                        className={`text-xs p-2.5 rounded-xl max-w-lg ${
+                          m.sender === "user" || m.sender === "me"
+                            ? "bg-white border border-gray-200 text-[#002f34]"
+                            : "bg-[#23e5db]/15 border border-teal-200 text-[#002f34] font-medium ml-auto"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                          <span className="font-bold">
+                            {m.sender === "user" || m.sender === "me" ? "Mijoz" : "Sotuvchi / Admin"}
+                          </span>
+                          <span>{m.time}</span>
+                        </div>
+                        <p>{m.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* 2. PRODUCTS MANAGEMENT TABLE */
+        <div className="bg-white rounded-3xl border border-gray-200/80 shadow-sm overflow-hidden">
         {/* Table Controls */}
         <div className="p-4 sm:p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -394,6 +507,7 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

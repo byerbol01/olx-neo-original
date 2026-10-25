@@ -22,6 +22,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { createProduct, uploadImageFile } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/components/Toast";
 
 const ALL_CATEGORIES = [
   "Avto",
@@ -34,14 +36,25 @@ const ALL_CATEGORIES = [
   "Uy va bog'",
 ];
 
+const CATEGORY_DEFAULT_IMAGES = {
+  Avto: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
+  "Ko'chmas mulk": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80",
+  Elektronika: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80",
+  "Ish o'rinlari": "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80",
+  Xizmatlar: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=800&q=80",
+  "Moda va stil": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=80",
+  "Bolalar dunyosi": "https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=800&q=80",
+  "Uy va bog'": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80",
+};
+
 export default function CreateAdPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialCategory = searchParams.get("category") || searchParams.get("cat") || "Elektronika";
+  const { user } = useAuth() || {};
 
-  const [title, setTitle] = useState(
-    "Kuchli flagman noutbuk 16 dyuym, 32GB RAM / 1TB SSD"
-  );
+  const initialCategory = searchParams.get("category") || searchParams.get("cat") || "Avto";
+
+  const [title, setTitle] = useState("");
   const [category, setCategory] = useState(initialCategory);
 
   useEffect(() => {
@@ -50,34 +63,34 @@ export default function CreateAdPage() {
       setCategory(catFromUrl);
     }
   }, [searchParams]);
-  const [description, setDescription] = useState(
-    "Noutbuk ideal holatda, yangi qutisida. Karobka-dokumentlari to'liq, 1 yil rasmiy kafolat bilan beriladi. Batareya quvvati 100%, 12 ta sikl zaryad olgan. Hech qanday tirnalish yoki nuqsoni yo'q. Qolgan savollar bo'yicha telefon orqali bog'lanishingiz mumkin."
-  );
-  const [price, setPrice] = useState("58400000");
-  const [isNegotiable, setIsNegotiable] = useState(true);
+
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [isNegotiable, setIsNegotiable] = useState(false);
   const [safeDeal, setSafeDeal] = useState(true);
-  const [freeDelivery, setFreeDelivery] = useState(true);
-  const [location, setLocation] = useState(
-    "Toshkent shahri, Yunusobod tumani"
-  );
+  const [freeDelivery, setFreeDelivery] = useState(false);
+  const [location, setLocation] = useState("");
   const [contactMethod, setContactMethod] = useState("both");
-  const [phoneNumber, setPhoneNumber] = useState("+998 90 123 45 67");
-  const [contactPerson, setContactPerson] = useState("Anvar N.");
-  const [selectedPlan, setSelectedPlan] = useState("vip");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phone || "");
+  const [contactPerson, setContactPerson] = useState(user?.name || "");
+  const [selectedPlan, setSelectedPlan] = useState("free");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [images, setImages] = useState([]);
 
-  const [images, setImages] = useState([
-    "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80",
-    "https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?auto=format&fit=crop&w=800&q=80",
-  ]);
+  // Sync user details when logged in
+  useEffect(() => {
+    if (user) {
+      if (user.phone) setPhoneNumber((prev) => prev || user.phone);
+      if (user.name) setContactPerson((prev) => prev || user.name);
+    }
+  }, [user]);
 
   const handleImageUpload = async (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       try {
         setIsUploading(true);
-        // Upload to desktop backend API
         const uploadedUrl = await uploadImageFile(file);
         if (uploadedUrl && images.length < 8) {
           setImages((prev) => [...prev, uploadedUrl]);
@@ -96,43 +109,120 @@ export default function CreateAdPage() {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const getCategoryTitlePlaceholder = (cat) => {
+    switch (cat) {
+      case "Avto":
+        return "Masalan: Chevrolet Cobalt 4-pozitsiya Style AT 2024";
+      case "Ko'chmas mulk":
+        return "Masalan: 3-xonali shinam kvartira, Chilonzor";
+      case "Elektronika":
+        return "Masalan: iPhone 15 Pro Max 256GB";
+      case "Ish o'rinlari":
+        return "Masalan: Sotuv bo'yicha yetakchi mutaxassis";
+      case "Xizmatlar":
+        return "Masalan: Konditsioner o'rnatish va ta'mirlash";
+      case "Moda va stil":
+        return "Masalan: Erkaklar qishki kurtkasi (ZARA original)";
+      case "Bolalar dunyosi":
+        return "Masalan: Bolalar kolyaskasi 3 in 1 (yangi)";
+      case "Uy va bog'":
+        return "Masalan: Qulay yumshoq mebel to'plami";
+      default:
+        return "Masalan: Mahsulot yoki xizmat nomi...";
+    }
+  };
+
+  const getCategoryPricePlaceholder = (cat) => {
+    switch (cat) {
+      case "Avto":
+        return "Masalan: 145 000 000";
+      case "Ko'chmas mulk":
+        return "Masalan: 650 000 000";
+      case "Elektronika":
+        return "Masalan: 12 500 000";
+      case "Ish o'rinlari":
+        return "Masalan: 6 000 000";
+      case "Xizmatlar":
+        return "Masalan: 350 000";
+      case "Moda va stil":
+        return "Masalan: 450 000";
+      case "Bolalar dunyosi":
+        return "Masalan: 850 000";
+      case "Uy va bog'":
+        return "Masalan: 3 200 000";
+      default:
+        return "Masalan: 500 000";
+    }
+  };
+
   const handleAiTitle = () => {
-    setTitle("Apple MacBook Pro 16 M3 Max 36GB / 1TB SSD Space Black (Yangi)");
+    if (category === "Avto") {
+      setTitle("Chevrolet Cobalt 4-pozitsiya Style AT 2024 (Ideal holatda)");
+    } else if (category === "Ko'chmas mulk") {
+      setTitle("3-xonali shinam xonadon novostroyka, barcha jihozlari bilan");
+    } else if (category === "Ish o'rinlari") {
+      setTitle("Katta sotuv menejeri (B2B, oylik + bonuslar)");
+    } else if (category === "Xizmatlar") {
+      setTitle("Kvartira va uylarni kalit topshirishgacha sifatli ta'mirlash");
+    } else {
+      setTitle("iPhone 15 Pro Max 256GB Natural Titanium (Yangi qadoqda)");
+    }
   };
 
   const handleAiDescription = () => {
-    setDescription(
-      "AQSH rasmiy Apple Store do'konidan keltirilgan, mutlaqo yangi flagman noutbuk. Qadoq plyonkasi ochilmagan, zavod muhrlari buzilmagan. 1 yil rasmiy Apple Care kafolati. Toshkent bo'ylab bepul kuryerlik yetkazib berish mavjud."
-    );
+    if (category === "Avto") {
+      setDescription(
+        "Avtomobil a'lo holatda, urilmagan, kraska toza. Zavod holatida, to'liq texnik ko'rikdan o'tgan. Yoqilg'i tejamkor, salon toza va chekilmagan. Hujjatlari joyida, sotuvga tayyor."
+      );
+    } else if (category === "Ko'chmas mulk") {
+      setDescription(
+        "Shinam va yorug' xonadon, sifatli yevroremont qilingan. Barcha qulayliklar mavjud, yaqin atrofda maktab, bog'cha, bekat va do'konlar joylashgan. Hujjatlari toza, ipotekaga ham beriladi."
+      );
+    } else {
+      setDescription(
+        "Mahsulot ideal holatda, to'liq komplektatsiyada. Barcha funksiyalari nuqsonsiz ishlaydi, hech qanday tirnalish yoki nosozligi yo'q. Qolgan barcha savollar bo'yicha telefon orqali bog'lanishingiz mumkin."
+      );
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !price) {
-      alert("Iltimos, sarlavha va narxni kiriting!");
+    if (!title.trim() || !price) {
+      toast.warning(
+        "Iltimos, sarlavha va narxni to'liq kiriting!",
+        "Ma'lumot yetarli emas"
+      );
       return;
     }
 
     try {
       setIsSubmitting(true);
       const cleanPrice = String(price).replace(/\s/g, "");
+      const cleanCategory = category.split(" > ")[0] || "Avto";
+      const defaultImg =
+        CATEGORY_DEFAULT_IMAGES[cleanCategory] ||
+        "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80";
+
+      const finalImages = images.length > 0 ? images : [defaultImg];
 
       const productPayload = {
-        title,
+        title: title.trim(),
         price: Number(cleanPrice) || 0,
-        category: category.split(" > ")[0] || "Elektronika",
-        location,
-        description,
-        images,
-        image: images[0] || "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=800&q=80",
+        category: cleanCategory,
+        location: location.trim() || "Toshkent shahri",
+        description:
+          description.trim() ||
+          `${title.trim()}. Mahsulot a'lo holatda, batafsil ma'lumot olish uchun bog'laning.`,
+        images: finalImages,
+        image: finalImages[0],
         negotiable: isNegotiable,
         badge: selectedPlan === "vip" ? "VIP" : selectedPlan === "top" ? "TOP" : "YANGI",
-        sellerName: contactPerson,
-        phoneNumber,
+        sellerName: contactPerson.trim() || "Foydalanuvchi",
+        phoneNumber: phoneNumber.trim() || "+998 90 123 45 67",
         seller: {
-          name: contactPerson,
-          phone: phoneNumber,
-          avatar: (contactPerson || "FO").slice(0, 2).toUpperCase(),
+          name: contactPerson.trim() || "Foydalanuvchi",
+          phone: phoneNumber.trim() || "+998 90 123 45 67",
+          avatar: (contactPerson.trim() || "FO").slice(0, 2).toUpperCase(),
           verified: true,
           rating: 5.0,
           deals: "1 ta yangi e'lon",
@@ -140,15 +230,18 @@ export default function CreateAdPage() {
       };
 
       const res = await createProduct(productPayload);
-      alert("✅ E'loningiz Backend bazasiga muvaffaqiyatli saqlandi!");
+      toast.success(
+        "E'loningiz backend bazasiga muvaffaqiyatli saqlandi!",
+        "E'lon yaratildi"
+      );
 
       if (res?.data?.id) {
         router.push(`/product/${res.data.id}`);
       } else {
-        router.push("/");
+        router.push("/catalog");
       }
     } catch (err) {
-      alert("E'lon qo'shishda xatolik: " + err.message);
+      toast.error("E'lon qo'shishda xatolik: " + err.message, "Xatolik");
     } finally {
       setIsSubmitting(false);
     }
@@ -207,7 +300,7 @@ export default function CreateAdPage() {
               maxLength={70}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Masalan: iPhone 15 Pro Max 256GB"
+              placeholder={getCategoryTitlePlaceholder(category)}
               required
               className="w-full bg-[#f2f4f5] text-xs sm:text-sm font-medium px-4 py-3 rounded-2xl outline-none focus:bg-white focus:border focus:border-[#23e5db] text-[#002f34]"
             />
@@ -346,7 +439,7 @@ export default function CreateAdPage() {
                 type="text"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="Masalan: 58 400 000"
+                placeholder={getCategoryPricePlaceholder(category)}
                 required
                 className="w-full bg-[#f2f4f5] text-sm font-bold px-4 py-3 rounded-2xl outline-none focus:bg-white focus:border focus:border-[#23e5db] text-[#002f34]"
               />

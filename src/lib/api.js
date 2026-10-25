@@ -212,3 +212,31 @@ export async function apiOAuthLogin({ provider, email, name, avatar, providerId 
     };
   }
 }
+
+// ================= MESSAGES API =================
+export async function getBackendMessages() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/messages`, { cache: "no-store" });
+    if (!res.ok) throw new Error("Xabarlarni yuklab bo'lmadi");
+    const json = await res.json();
+    return json.data || [];
+  } catch (err) {
+    console.warn("getBackendMessages fallback:", err.message);
+    return [];
+  }
+}
+
+export async function sendBackendMessage(payload) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    return json;
+  } catch (err) {
+    console.warn("sendBackendMessage fallback:", err.message);
+    return { success: false, error: err.message };
+  }
+}

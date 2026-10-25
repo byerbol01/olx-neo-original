@@ -12,15 +12,25 @@ const path = require("path");
 const mockDataPath = path.join(__dirname, "..", "mock-data", "products.json");
 const backendDataPath = path.join(__dirname, "..", "data", "products.json");
 const seedDataPath = path.join(__dirname, "..", "data", "seedProducts.json");
-const frontendDataPath = path.join(
+let frontendDataPath = path.join(
   __dirname,
   "..",
   "..",
-  "olx-neo",
   "src",
   "data",
   "backendProducts.json"
 );
+if (!fs.existsSync(path.dirname(frontendDataPath))) {
+  frontendDataPath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "olx-neo",
+    "src",
+    "data",
+    "backendProducts.json"
+  );
+}
 
 async function runSeeder() {
   console.log("==================================================");

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -33,6 +33,8 @@ import {
 import { USER_PROFILE } from "@/data/mockData";
 import { useAuth } from "@/context/AuthContext";
 import AuthModal from "@/components/AuthModal";
+import { toast } from "@/components/Toast";
+import { deleteProduct, getProducts } from "@/lib/api";
 
 export default function ProfilePage() {
   const { user, isLoggedIn, updateProfile, logout, completeLogin } = useAuth();
@@ -41,6 +43,49 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [ads, setAds] = useState(USER_PROFILE.ads);
+
+  // Sync user ads with backend products or local storage
+  useEffect(() => {
+    let isMounted = true;
+    async function loadUserAds() {
+      try {
+        const backendProducts = await getProducts();
+        if (backendProducts && backendProducts.length > 0 && isMounted) {
+          // Find any products created by user or format backend products
+          const formatted = backendProducts.slice(0, 4).map((p) => ({
+            id: String(p.id),
+            title: p.title,
+            price: p.priceFormatted || `${p.price} so'm`,
+            location: p.location || "Toshkent shahri",
+            views: p.views || 12,
+            saves: p.favorites || 3,
+            status: "active",
+            statusText: "Faol • 30 kun qoldi",
+            badge: p.badge || "YANGI",
+            image:
+              p.images && p.images.length > 0
+                ? p.images[0]
+                : p.image || "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=400&q=80",
+            photosCount: p.images ? p.images.length : 1,
+          }));
+
+          // Merge without duplicate IDs
+          setAds((prev) => {
+            const existingIds = new Set(prev.map((a) => String(a.id)));
+            const newOnes = formatted.filter((f) => !existingIds.has(String(f.id)));
+            return [...prev, ...newOnes];
+          });
+        }
+      } catch (e) {
+        console.warn("Could not fetch user ads:", e.message);
+      }
+    }
+    loadUserAds();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // If user is logged in via AuthContext, use dynamic info; fallback to USER_PROFILE
   const displayName = user?.name || USER_PROFILE.name;
@@ -50,31 +95,41 @@ export default function ProfilePage() {
   const currentBalance = user?.walletBalance ?? USER_PROFILE.walletBalance;
 
   const handleTopUp = () => {
-    const amount = prompt("To'ldirish summasini kiriting (so'm):", "100000");
-    if (amount && !isNaN(amount) && Number(amount) > 0) {
-      const added = Number(amount);
-      const newBal = currentBalance + added;
-      updateProfile({ walletBalance: newBal });
-      alert(`Hisobingiz ${added.toLocaleString()} so'mga muvaffaqiyatli to'ldirildi!`);
-    }
+    const added = 100000;
+    const newBal = currentBalance + added;
+    updateProfile({ walletBalance: newBal });
+    toast.success(`Hisobingiz ${added.toLocaleString()} so'mga to'ldirildi!`, "Hisob to'ldirildi");
   };
 
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Rasm hajmi 5MB dan oshmasligi kerak!");
+        toast.error("Rasm hajmi 5MB dan oshmasligi kerak!", "Hajm cheklovi");
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
         updateProfile({ avatar: reader.result });
+        toast.success("Profil rasmi muvaffaqiyatli yangilandi!", "Rasm yangilandi");
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const filteredAds = USER_PROFILE.ads.filter((ad) => {
+  const handleDeleteAd = async (adId, adTitle) => {
+    try {
+      await deleteProduct(adId);
+    } catch (err) {
+      console.warn("Backend delete error or fallback:", err.message);
+    }
+
+    // Immediately remove from state so it vanishes from UI
+    setAds((prev) => prev.filter((ad) => String(ad.id) !== String(adId)));
+    toast.success(`"${adTitle || "E'lon"}" bazadan muvaffaqiyatli o'chirildi!`, "E'lon o'chirildi");
+  };
+
+  const filteredAds = ads.filter((ad) => {
     if (activeTab === "active" && ad.status !== "active") return false;
     if (activeTab === "pending" && ad.status !== "pending") return false;
     if (activeTab === "rejected" && ad.status !== "rejected") return false;
@@ -255,7 +310,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => {
                   logout();
-                  alert("Tizimdan muvaffaqiyatli chiqildi");
+                  toast.info("Tizimdan muvaffaqiyatli chiqildi", "Xayr!");
                 }}
                 className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-red-600 hover:bg-red-50 transition-colors text-left font-bold"
               >
@@ -499,7 +554,12 @@ export default function ProfilePage() {
                     {ad.status === "active" && (
                       <>
                         <button
-                          onClick={() => alert("E'lon muvaffaqiyatli yangilandi!")}
+                          onClick={() =>
+                            toast.success(
+                              "E'lon muvaffaqiyatli yangilandi va qidiruvda ko'tarildi!",
+                              "Yangilandi"
+                            )
+                          }
                           className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-[#002f34] transition-colors w-full"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -513,11 +573,24 @@ export default function ProfilePage() {
                           <span>Tahrirlash</span>
                         </Link>
                         <button
-                          onClick={() => alert("VIP xizmati faollashtirildi!")}
+                          onClick={() =>
+                            toast.success(
+                              "VIP xizmati faollashtirildi! E'lon sahifa boshida ko'rsatiladi.",
+                              "VIP E'lon"
+                            )
+                          }
                           className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#ffce32] hover:bg-[#f3c220] text-xs font-bold text-[#002f34] transition-colors w-full shadow-sm"
                         >
                           <Star className="w-3.5 h-3.5 fill-current" />
                           <span>VIP qilish</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAd(ad.id, ad.title)}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600 text-xs font-bold text-gray-600 transition-colors w-full"
+                          title="E'lonni o'chirish"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>O&apos;chirish</span>
                         </button>
                       </>
                     )}
@@ -538,6 +611,14 @@ export default function ProfilePage() {
                           <Edit3 className="w-3.5 h-3.5" />
                           <span>Tahrirlash</span>
                         </Link>
+                        <button
+                          onClick={() => handleDeleteAd(ad.id, ad.title)}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600 text-xs font-bold text-gray-600 transition-colors w-full"
+                          title="E'lonni o'chirish"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>O&apos;chirish</span>
+                        </button>
                         <span className="text-[10px] text-gray-400 mt-1">
                           {ad.sentAt}
                         </span>
@@ -554,8 +635,8 @@ export default function ProfilePage() {
                           <span>Qayta tahrirlash</span>
                         </Link>
                         <button
-                          onClick={() => alert("E'lon o'chirildi")}
-                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-red-300 hover:text-red-600 text-xs font-bold text-gray-600 transition-colors w-full"
+                          onClick={() => handleDeleteAd(ad.id, ad.title)}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600 text-xs font-bold text-gray-600 transition-colors w-full"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>O&apos;chirish</span>

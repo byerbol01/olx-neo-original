@@ -29,8 +29,32 @@ import {
 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
 import SafeDealBanner from "@/components/SafeDealBanner";
-import { getProductById, getProducts } from "@/lib/api";
-import { CURRENT_PRODUCT } from "@/data/mockData";
+import { getProductById, getProducts, sendBackendMessage } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "@/components/Toast";
+import { CHATS_STORAGE_KEY, ACTIVE_CHAT_KEY } from "@/lib/realtimeChat";
+
+const CATEGORY_DEFAULT_IMAGES = {
+  avto: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1200&q=80",
+  transport: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1200&q=80",
+  "ko'chmas mulk": "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80",
+  re: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80",
+  elektronika: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80",
+  noutbuklar: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80",
+  "ish o'rinlari": "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80",
+  xizmatlar: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=1200&q=80",
+  "moda va stil": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=1200&q=80",
+  "bolalar dunyosi": "https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=1200&q=80",
+  "uy va bog'": "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=1200&q=80",
+};
+
+const getCategoryFallback = (cat) => {
+  const clean = (cat || "").toLowerCase().replace(/['`ʻ’‘]/g, "'").trim();
+  for (const [key, url] of Object.entries(CATEGORY_DEFAULT_IMAGES)) {
+    if (clean.includes(key) || key.includes(clean)) return url;
+  }
+  return "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1200&q=80";
+};
 
 const formatLocation = (loc) => {
   if (!loc) return "Toshkent shahri";
@@ -52,17 +76,111 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const params = useParams();
   const productId = params?.id || "1";
+  const { user } = useAuth() || {};
 
-  const [product, setProduct] = useState(() => ({
-    ...CURRENT_PRODUCT,
-    location: formatLocation(CURRENT_PRODUCT.location),
-  }));
+  const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
   const [fullscreenModal, setFullscreenModal] = useState(false);
   const [similarProducts, setSimilarProducts] = useState([]);
+
+  const handleStartChat = async () => {
+    if (!product) return;
+    try {
+      const chatId = `chat-prod-${product.id}`;
+      const sellerName = product.seller?.name || "Sotuvchi";
+      const sellerPhone = product.seller?.phone || "+998 90 123 45 67";
+      const prodTitle = product.title;
+      const prodPrice = product.priceFormatted || `${product.price} so'm`;
+      const prodImage = product.images?.[0] || product.image;
+
+      // 1. Customer sends: "Assalomu alaykum"
+      await sendBackendMessage({
+        chatId,
+        productId: product.id,
+        productTitle: prodTitle,
+        sender: "user",
+        text: "Assalomu alaykum",
+        user: { name: user?.name || "Mijoz", phone: user?.phone || "+998 90 123 45 67" },
+        seller: { name: sellerName, phone: sellerPhone },
+      });
+
+      // 2. Admin / Seller auto responds: "Vaalaykum assalom, nima xizmat?"
+      await sendBackendMessage({
+        chatId,
+        productId: product.id,
+        productTitle: prodTitle,
+        sender: "seller",
+        text: "Vaalaykum assalom, nima xizmat?",
+        user: { name: user?.name || "Mijoz", phone: user?.phone || "+998 90 123 45 67" },
+        seller: { name: sellerName, phone: sellerPhone },
+      });
+
+      // 3. Local sync for instant responsive feel
+      if (typeof window !== "undefined") {
+        const existingRaw = localStorage.getItem(CHATS_STORAGE_KEY);
+        let allChats = existingRaw ? JSON.parse(existingRaw) : [];
+
+        const newChatObj = {
+          id: chatId,
+          user: {
+            name: sellerName,
+            phone: sellerPhone,
+            avatar:
+              product.seller?.avatar && product.seller.avatar.startsWith("http")
+                ? product.seller.avatar
+                : null,
+            role: "SOTUVCHI",
+            online: true,
+            lastSeen: "Hozir onlayn",
+          },
+          item: {
+            id: String(product.id),
+            title: prodTitle,
+            shortTitle: prodTitle.substring(0, 32) + "...",
+            price: prodPrice,
+            image: prodImage,
+          },
+          unread: 0,
+          lastTime: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          lastMessage: "Vaalaykum assalom, nima xizmat?",
+          messages: [
+            {
+              id: "msg-cust-" + Date.now(),
+              sender: "me",
+              text: "Assalomu alaykum",
+              time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              status: "sent",
+            },
+            {
+              id: "msg-adm-" + (Date.now() + 1),
+              sender: "them",
+              text: "Vaalaykum assalom, nima xizmat?",
+              time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              status: "received",
+            },
+          ],
+          quickReplies: [
+            "Narxi kelishiladimi?",
+            "Hozir olib ketsam bo'ladimi?",
+            "Dostavka bormi?",
+            "Manzil qayerda?",
+          ],
+        };
+
+        allChats = [newChatObj, ...allChats.filter((c) => c.id !== chatId)];
+        localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(allChats));
+        localStorage.setItem(ACTIVE_CHAT_KEY, chatId);
+      }
+
+      router.push(`/messages?chatId=${chatId}`);
+    } catch (err) {
+      console.warn("handleStartChat error:", err);
+      router.push("/messages");
+    }
+  };
 
   // Fetch product from backend
   useEffect(() => {
@@ -72,41 +190,75 @@ export default function ProductDetailPage() {
         setLoading(true);
         const data = await getProductById(productId);
         if (data && isMounted) {
-          const locStr = formatLocation(data.location || CURRENT_PRODUCT.location);
+          const locStr = formatLocation(data.location);
+          const fallbackImg = getCategoryFallback(data.category);
+          const rawImages =
+            Array.isArray(data.images) && data.images.length > 0
+              ? data.images
+              : data.image
+              ? [data.image]
+              : [fallbackImg];
+
+          const validImages = rawImages.map((img) =>
+            img && !img.includes("loremflickr.com") ? img : fallbackImg
+          );
+
           const normalized = {
-            ...CURRENT_PRODUCT,
-            ...data,
+            id: String(data.id || productId),
+            title: data.title || "E'lon",
+            subTitle: data.subTitle || data.title,
+            category: data.category || "Umumiy",
+            price: Number(data.price) || 0,
+            priceFormatted:
+              data.priceFormatted ||
+              `${Number(data.price || 0).toLocaleString("ru-RU").replace(/,/g, " ")} so'm`,
+            priceUsd:
+              data.priceUsd ||
+              `Taqriban $${Math.round((Number(data.price) || 0) / 12700)} USD`,
             location: locStr,
-            images:
-              Array.isArray(data.images) && data.images.length > 0
-                ? data.images
-                : [data.image || CURRENT_PRODUCT.images[0]],
+            date: data.date || "Bugun",
+            badge: data.badge || data.tags || null,
+            negotiable: data.negotiable !== false,
+            condition: data.condition || "A'lo holatda",
+            views: data.views || 45,
+            favorites: data.favorites || 12,
+            images: validImages,
             specs:
               Array.isArray(data.specs) && data.specs.length > 0
                 ? data.specs.map((s) => ({ ...s, value: renderSpecValue(s.value) }))
                 : [
-                    { label: "Holati", value: data.condition || "Yangi" },
+                    { label: "Holati", value: data.condition || "A'lo holatda" },
                     { label: "Kategoriya", value: data.category || "Umumiy" },
                     { label: "Joylashuv", value: locStr },
                   ],
             description: Array.isArray(data.description)
               ? data.description
-              : [data.description || "Batafsil ma'lumot berilmagan."],
+              : [
+                  data.description ||
+                    `${data.title}. Mahsulot ideal holatda, batafsil ma'lumot telefon orqali.`,
+                ],
             seller: {
-              ...CURRENT_PRODUCT.seller,
-              ...(data.seller || {}),
               phone: data.seller?.phone || data.phoneNumber || "+998 90 123 45 67",
-              name: data.seller?.name || data.sellerName || "Aziz Rahimov",
+              name: data.seller?.name || data.sellerName || "Sotuvchi",
+              avatar: data.seller?.avatar || "ST",
+              verified: true,
+              rating: data.seller?.rating || 4.9,
+              deals: data.seller?.deals || "30+ bitim",
             },
           };
           setProduct(normalized);
         }
 
-        // Similar products
+        // Similar products from same category
         const all = await getProducts();
         if (all && isMounted) {
-          const others = all.filter((p) => String(p.id) !== String(productId)).slice(0, 4);
-          setSimilarProducts(others);
+          let others = all.filter(
+            (p) => String(p.id) !== String(productId) && p.category === data?.category
+          );
+          if (others.length === 0) {
+            others = all.filter((p) => String(p.id) !== String(productId));
+          }
+          setSimilarProducts(others.slice(0, 4));
         }
       } catch (err) {
         console.error("Single product yuklashda xatolik:", err);
@@ -125,19 +277,47 @@ export default function ProductDetailPage() {
     if (typeof window !== "undefined") {
       if (navigator?.share) {
         navigator.share({
-          title: product.title,
+          title: product?.title || "OLX Neo",
           url: window.location.href,
         });
       } else if (navigator?.clipboard) {
         navigator.clipboard.writeText(window.location.href);
-        alert("Havola nusxalandi!");
+        toast.success("E'lon havolasi muvaffaqiyatli nusxalandi!", "Nusxalandi");
       }
     }
   };
 
-  const imagesList = product.images && product.images.length > 0
-    ? product.images
-    : [product.image || "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=85"];
+  const fallbackImg = getCategoryFallback(product?.category);
+  const imagesList =
+    Array.isArray(product?.images) && product.images.length > 0
+      ? product.images
+      : [product?.image || fallbackImg];
+
+  if (loading && !product) {
+    return (
+      <div className="max-w-[1360px] mx-auto px-4 py-24 flex flex-col items-center justify-center gap-4 text-center">
+        <Loader2 className="w-10 h-10 animate-spin text-[#008f87]" />
+        <p className="text-sm font-bold text-[#002f34]">
+          E&apos;lon ma&apos;lumotlari yuklanmoqda...
+        </p>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="max-w-[1360px] mx-auto px-4 py-20 text-center space-y-4">
+        <h2 className="text-2xl font-black text-[#002f34]">E&apos;lon topilmadi</h2>
+        <p className="text-xs text-gray-500">Ushbu e&apos;lon o&apos;chirilgan yoki mavjud emas.</p>
+        <Link
+          href="/catalog"
+          className="inline-block px-5 py-2.5 bg-[#23e5db] text-[#002f34] font-bold text-xs rounded-xl hover:bg-[#1cd1c7] transition-all"
+        >
+          Katalogga qaytish
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-5 sm:py-7 space-y-6">
@@ -172,9 +352,9 @@ export default function ProductDetailPage() {
       </div>
 
       {loading && (
-        <div className="py-6 flex items-center justify-center gap-2 text-xs font-semibold text-[#008f87]">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Backend ma&apos;lumotlari yangilanmoqda...</span>
+        <div className="py-2 flex items-center justify-center gap-2 text-xs font-semibold text-[#008f87]">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <span>Ma&apos;lumotlar yangilanmoqda...</span>
         </div>
       )}
 
@@ -185,11 +365,14 @@ export default function ProductDetailPage() {
           {/* A. Gallery */}
           <div className="bg-white rounded-3xl border border-gray-200/80 p-4 sm:p-5 shadow-sm space-y-3">
             {/* Main large photo */}
-            <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-gray-900 group">
+            <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-gray-100 group">
               <img
-                src={imagesList[selectedImageIndex] || imagesList[0]}
+                src={imagesList[selectedImageIndex] || imagesList[0] || fallbackImg}
                 alt={product.title}
                 className="w-full h-full object-cover transition-all duration-300"
+                onError={(e) => {
+                  e.currentTarget.src = fallbackImg;
+                }}
               />
 
               {/* Top Badges */}
@@ -254,6 +437,9 @@ export default function ProductDetailPage() {
                       src={img}
                       alt={`Rasm ${idx + 1}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = fallbackImg;
+                      }}
                     />
                   </button>
                 ))}
@@ -414,7 +600,7 @@ export default function ProductDetailPage() {
               </button>
 
               <button
-                onClick={() => router.push("/messages")}
+                onClick={handleStartChat}
                 className="w-full flex items-center justify-center gap-2 bg-[#23e5db] hover:bg-[#1cd1c7] active:scale-95 text-[#002f34] font-black text-sm sm:text-base py-3.5 rounded-2xl shadow-sm transition-all"
               >
                 <MessageSquare className="w-5 h-5 stroke-[2.5]" />
@@ -446,9 +632,28 @@ export default function ProductDetailPage() {
           <div className="bg-white rounded-3xl border border-gray-200/80 p-5 sm:p-6 shadow-sm space-y-4">
             <div className="flex items-center gap-3.5">
               <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-[#002f34] text-white flex items-center justify-center text-lg font-black shrink-0">
-                  {product.seller?.avatar || "SO"}
-                </div>
+                {product.seller?.avatar &&
+                (product.seller.avatar.startsWith("http") ||
+                  product.seller.avatar.startsWith("/") ||
+                  product.seller.avatar.startsWith("data:image")) ? (
+                  <img
+                    src={product.seller.avatar}
+                    alt={product.seller?.name || "Sotuvchi"}
+                    className="w-12 h-12 rounded-2xl object-cover shrink-0 border border-gray-100"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#002f34] to-[#008f87] text-white flex items-center justify-center text-lg font-black shrink-0 shadow-xs">
+                    {product.seller?.avatar ||
+                      (product.seller?.name
+                        ? product.seller.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()
+                        : "SO")}
+                  </div>
+                )}
                 <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full"></span>
               </div>
 

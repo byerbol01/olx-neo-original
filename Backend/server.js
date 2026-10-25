@@ -26,6 +26,24 @@ if (!fs.existsSync(dataDir)) {
 }
 const productsFile = path.join(dataDir, "products.json");
 const seedFile = path.join(dataDir, "seedProducts.json");
+const messagesFile = path.join(dataDir, "messages.json");
+
+function getMessages() {
+  if (!fs.existsSync(messagesFile)) {
+    fs.writeFileSync(messagesFile, "[]", "utf-8");
+    return [];
+  }
+  try {
+    const data = fs.readFileSync(messagesFile, "utf-8");
+    return JSON.parse(data);
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveMessages(msgs) {
+  fs.writeFileSync(messagesFile, JSON.stringify(msgs, null, 2), "utf-8");
+}
 
 // Ensure products data exists
 function getProducts() {
@@ -522,6 +540,59 @@ app.get("/api/admin/users", (req, res) => {
   try {
     const users = getUsers().map(({ password, ...u }) => u);
     res.json({ success: true, count: users.length, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Messages API (Chat & Admin sync)
+app.get("/api/messages", (req, res) => {
+  try {
+    const msgs = getMessages();
+    res.json({ success: true, count: msgs.length, data: msgs });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/messages", (req, res) => {
+  try {
+    const { chatId, productId, productTitle, sender, text, user, seller } = req.body;
+    const msgs = getMessages();
+
+    let conv = msgs.find((c) => c.id === chatId || (productId && String(c.productId) === String(productId)));
+    const newMsgItem = {
+      id: "msg-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+      sender: sender || "user",
+      text: text || "",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      date: new Date().toLocaleDateString("uz-UZ"),
+      timestamp: Date.now(),
+    };
+
+    if (conv) {
+      conv.lastMessage = text;
+      conv.lastTime = newMsgItem.time;
+      conv.updatedAt = Date.now();
+      conv.messages.push(newMsgItem);
+    } else {
+      conv = {
+        id: chatId || "chat-" + Date.now(),
+        productId: productId || null,
+        productTitle: productTitle || "E'lon",
+        user: user || { name: "Mijoz", phone: "+998 90 123 45 67" },
+        seller: seller || { name: "Admin / Sotuvchi", phone: "+998 90 999 99 99" },
+        lastMessage: text,
+        lastTime: newMsgItem.time,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        messages: [newMsgItem],
+      };
+      msgs.unshift(conv);
+    }
+
+    saveMessages(msgs);
+    res.status(201).json({ success: true, data: conv });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

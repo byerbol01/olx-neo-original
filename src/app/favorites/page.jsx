@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import ProductCard from "@/components/ProductCard";
+import { toast } from "@/components/Toast";
 
 export default function FavoritesPage() {
   const [activeTab, setActiveTab] = useState("ads");
@@ -346,12 +347,16 @@ export default function FavoritesPage() {
 
         <button
           onClick={() => {
-            setNotificationsEnabled(!notificationsEnabled);
-            alert(
-              notificationsEnabled
-                ? "Bildirishnomalar o'chirildi"
-                : "Bildirishnomalar muvaffaqiyatli yoqildi!"
-            );
+            const nextState = !notificationsEnabled;
+            setNotificationsEnabled(nextState);
+            if (nextState) {
+              toast.success(
+                "Bildirishnomalar muvaffaqiyatli yoqildi! Narx o'zgarishi haqida xabar beramiz.",
+                "Bildirishnomalar"
+              );
+            } else {
+              toast.info("Bildirishnomalar o'chirildi", "Bildirishnomalar");
+            }
           }}
           className="flex items-center gap-2 px-5 py-3 rounded-full bg-[#ffce32] hover:bg-[#f3c220] active:scale-95 text-[#002f34] font-bold text-xs sm:text-sm shadow-sm transition-all shrink-0"
         >
